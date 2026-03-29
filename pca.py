@@ -1,76 +1,45 @@
 #!/usr/bin/env python3
-"""Principal Component Analysis from scratch."""
-import sys, math, csv, random
+"""PCA — dimensionality reduction via eigendecomposition."""
+import math, random, sys
 
-def mean_vec(X):
+def mean_center(X):
     n, d = len(X), len(X[0])
-    return [sum(X[i][j] for i in range(n)) / n for j in range(d)]
-
-def center(X):
-    mu = mean_vec(X)
-    return [[X[i][j] - mu[j] for j in range(len(mu))] for i in range(len(X))], mu
+    means = [sum(X[i][j] for i in range(n))/n for j in range(d)]
+    return [[X[i][j]-means[j] for j in range(d)] for i in range(n)], means
 
 def cov_matrix(X):
-    n, d = len(X), len(X[0])
-    C = [[0]*d for _ in range(d)]
+    n, d = len(X), len(X[0]); C = [[0]*d for _ in range(d)]
     for i in range(d):
-        for j in range(i, d):
-            val = sum(X[k][i] * X[k][j] for k in range(n)) / (n - 1)
-            C[i][j] = C[j][i] = val
+        for j in range(d):
+            C[i][j] = sum(X[k][i]*X[k][j] for k in range(n))/(n-1)
     return C
 
-def power_iteration(A, num_iter=1000):
-    n = len(A)
-    v = [random.gauss(0, 1) for _ in range(n)]
-    norm = math.sqrt(sum(x**2 for x in v))
-    v = [x/norm for x in v]
+def power_iteration(matrix, num_iter=100):
+    d = len(matrix); v = [random.gauss(0,1) for _ in range(d)]
     for _ in range(num_iter):
-        w = [sum(A[i][j]*v[j] for j in range(n)) for i in range(n)]
-        norm = math.sqrt(sum(x**2 for x in w))
-        if norm < 1e-10: break
-        v = [x/norm for x in w]
-    eigenvalue = sum(v[i]*sum(A[i][j]*v[j] for j in range(n)) for i in range(n))
+        mv = [sum(matrix[i][j]*v[j] for j in range(d)) for i in range(d)]
+        norm = math.sqrt(sum(x**2 for x in mv))
+        v = [x/norm for x in mv]
+    eigenvalue = sum(sum(matrix[i][j]*v[j] for j in range(d))*v[i] for i in range(d))
     return eigenvalue, v
 
-def deflate(A, eigenvalue, eigenvector):
-    n = len(A)
-    return [[A[i][j] - eigenvalue * eigenvector[i] * eigenvector[j] for j in range(n)] for i in range(n)]
-
 def pca(X, n_components=2):
-    Xc, mu = center(X); C = cov_matrix(Xc)
-    components = []; eigenvalues = []
-    A = [row[:] for row in C]
+    Xc, means = mean_center(X); C = cov_matrix(Xc)
+    components = []; d = len(C)
     for _ in range(n_components):
-        val, vec = power_iteration(A)
-        eigenvalues.append(val); components.append(vec)
-        A = deflate(A, val, vec)
-    total_var = sum(C[i][i] for i in range(len(C)))
-    explained = [ev / total_var for ev in eigenvalues]
-    projected = [[sum(Xc[i][j] * components[k][j] for j in range(len(Xc[0]))) for k in range(n_components)] for i in range(len(X))]
-    return projected, components, eigenvalues, explained
+        val, vec = power_iteration(C)
+        components.append((val, vec))
+        for i in range(d):
+            for j in range(d):
+                C[i][j] -= val * vec[i] * vec[j]
+    return components, Xc
 
-def main():
-    import argparse
-    p = argparse.ArgumentParser(description="PCA from scratch")
-    p.add_argument("file", nargs="?"); p.add_argument("-n", type=int, default=2)
-    p.add_argument("--demo", action="store_true"); p.add_argument("--plot", action="store_true")
-    args = p.parse_args()
-    if args.demo or not args.file:
-        random.seed(42)
-        X = [[random.gauss(0,3) + random.gauss(0,0.5), random.gauss(0,3)*0.7 + random.gauss(0,0.5), random.gauss(0,1)] for _ in range(50)]
-        proj, comps, evals, explained = pca(X, 2)
-        print(f"PCA on {len(X)}x{len(X[0])} data -> {len(proj[0])} components")
-        for i, (ev, exp) in enumerate(zip(evals, explained)):
-            print(f"  PC{i+1}: eigenvalue={ev:.3f}, explained={exp:.1%}")
-            print(f"    loadings: [{', '.join(f'{v:.3f}' for v in comps[i])}]")
-        print(f"  Total explained: {sum(explained):.1%}")
-        return
-    with open(args.file) as f:
-        reader = csv.reader(f); headers = next(reader)
-        X = [[float(v) for v in row] for row in reader]
-    proj, comps, evals, explained = pca(X, args.n)
-    print(f"PCA: {len(X[0])}D -> {args.n}D")
-    for i, exp in enumerate(explained): print(f"  PC{i+1}: {exp:.1%} variance")
-    print(f"  Total: {sum(explained):.1%}")
-
-if __name__ == "__main__": main()
+if __name__ == "__main__":
+    random.seed(42); n = 100
+    X = [[random.gauss(0,3), 0] for _ in range(n)]
+    X = [[x[0]+random.gauss(0,0.5), x[0]*0.7+random.gauss(0,0.5)] for x in X]
+    comps, Xc = pca(X, 2)
+    print("PCA results:")
+    total_var = sum(c[0] for c in comps)
+    for i, (val, vec) in enumerate(comps):
+        print(f"  PC{i+1}: eigenvalue={val:.3f} ({val/total_var*100:.1f}%) direction=[{vec[0]:.3f}, {vec[1]:.3f}]")

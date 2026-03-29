@@ -1,13 +1,9 @@
-# PCA from Scratch
+# pca-decomposition
 
-PCA from Scratch — zero-dependency, single-file Python CLI.
+Principal Component Analysis. Single-file Python CLI, zero dependencies.
 
 ## Usage
 
 ```bash
-python3 pca.py --help
+python3 pca.py
 ```
-
-## License
-
-MIT
