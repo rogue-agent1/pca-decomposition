@@ -1,9 +1,10 @@
-# pca-decomposition
+# pca
 
-Principal Component Analysis. Single-file Python CLI, zero dependencies.
+Single-file Python CLI. Zero dependencies.
 
 ## Usage
 
 ```bash
 python3 pca.py
+python3 pca.py test
 ```

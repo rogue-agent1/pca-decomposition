@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""PCA — dimensionality reduction via eigendecomposition."""
-import math, random, sys
+"""Principal Component Analysis from scratch."""
+import sys, math
 
 def mean_center(X):
     n, d = len(X), len(X[0])
@@ -8,38 +8,54 @@ def mean_center(X):
     return [[X[i][j]-means[j] for j in range(d)] for i in range(n)], means
 
 def cov_matrix(X):
-    n, d = len(X), len(X[0]); C = [[0]*d for _ in range(d)]
+    n, d = len(X), len(X[0])
+    C = [[0.0]*d for _ in range(d)]
     for i in range(d):
-        for j in range(d):
+        for j in range(i, d):
             C[i][j] = sum(X[k][i]*X[k][j] for k in range(n))/(n-1)
+            C[j][i] = C[i][j]
     return C
 
-def power_iteration(matrix, num_iter=100):
-    d = len(matrix); v = [random.gauss(0,1) for _ in range(d)]
-    for _ in range(num_iter):
-        mv = [sum(matrix[i][j]*v[j] for j in range(d)) for i in range(d)]
-        norm = math.sqrt(sum(x**2 for x in mv))
-        v = [x/norm for x in mv]
-    eigenvalue = sum(sum(matrix[i][j]*v[j] for j in range(d))*v[i] for i in range(d))
+def power_iteration(C, n_iter=200):
+    d = len(C)
+    import random
+    v = [random.gauss(0,1) for _ in range(d)]
+    norm = math.sqrt(sum(x*x for x in v))
+    v = [x/norm for x in v]
+    for _ in range(n_iter):
+        nv = [sum(C[i][j]*v[j] for j in range(d)) for i in range(d)]
+        norm = math.sqrt(sum(x*x for x in nv))
+        if norm < 1e-10: break
+        v = [x/norm for x in nv]
+    eigenvalue = sum(sum(C[i][j]*v[j] for j in range(d))*v[i] for i in range(d))
     return eigenvalue, v
 
 def pca(X, n_components=2):
-    Xc, means = mean_center(X); C = cov_matrix(Xc)
-    components = []; d = len(C)
-    for _ in range(n_components):
+    Xc, means = mean_center(X)
+    C = cov_matrix(Xc)
+    d = len(C)
+    components = []
+    for _ in range(min(n_components, d)):
         val, vec = power_iteration(C)
         components.append((val, vec))
         for i in range(d):
             for j in range(d):
                 C[i][j] -= val * vec[i] * vec[j]
-    return components, Xc
+    projected = []
+    for x in Xc:
+        projected.append([sum(x[j]*components[k][1][j] for j in range(d)) for k in range(len(components))])
+    return projected, components, means
+
+def test():
+    import random; random.seed(42)
+    X = [[i + random.gauss(0,0.1), i*2 + random.gauss(0,0.1), random.gauss(0,1)] for i in range(50)]
+    proj, comps, means = pca(X, 2)
+    assert len(proj) == 50
+    assert len(proj[0]) == 2
+    assert comps[0][0] > comps[1][0]  # first eigenvalue larger
+    assert len(comps[0][1]) == 3
+    print("  pca: ALL TESTS PASSED")
 
 if __name__ == "__main__":
-    random.seed(42); n = 100
-    X = [[random.gauss(0,3), 0] for _ in range(n)]
-    X = [[x[0]+random.gauss(0,0.5), x[0]*0.7+random.gauss(0,0.5)] for x in X]
-    comps, Xc = pca(X, 2)
-    print("PCA results:")
-    total_var = sum(c[0] for c in comps)
-    for i, (val, vec) in enumerate(comps):
-        print(f"  PC{i+1}: eigenvalue={val:.3f} ({val/total_var*100:.1f}%) direction=[{vec[0]:.3f}, {vec[1]:.3f}]")
+    if len(sys.argv) > 1 and sys.argv[1] == "test": test()
+    else: print("PCA from scratch")
